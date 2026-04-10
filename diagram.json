@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "author": "Smart-Manhole IOT Project",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-esp32-devkit-v1", "id": "esp",  "top": 0,   "left": 0,   "attrs": {} },
+    { "type": "wokwi-dht22",           "id": "dht1", "top": -70, "left": 220, "attrs": { "pin": "4" } },
+    { "type": "wokwi-potentiometer",   "id": "pot1", "top": 80,  "left": 310, "attrs": { "label": "Gas (MQ) ADC", "value": "0.5" } },
+    { "type": "wokwi-hc-sr04",         "id": "hc1",  "top": -70, "left": -160, "attrs": { "distance": "15" } },
+    { "type": "wokwi-buzzer",          "id": "bz1",  "top": 130, "left": -160, "attrs": {} },
+    { "type": "wokwi-led",             "id": "led1", "top": 200, "left": -150, "attrs": { "color": "red" } }
+  ],
+  "connections": [
+    ["esp:GND.1",  "dht1:GND",   "black", []],
+    ["esp:3V3",    "dht1:VCC",   "red",   []],
+    ["esp:D4",     "dht1:SDA",   "green", []],
+
+    ["esp:GND.2",  "pot1:GND",   "black", []],
+    ["esp:3V3",    "pot1:VCC",   "red",   []],
+    ["esp:D34",    "pot1:SIG",   "yellow",[]],
+
+    ["esp:D5",     "hc1:TRIG",   "orange",[]],
+    ["esp:D18",    "hc1:ECHO",   "purple",[]],
+    ["esp:GND.3",  "hc1:GND",    "black", []],
+    ["esp:5V",     "hc1:VCC",    "red",   []],
+
+    ["esp:D23",    "bz1:1",      "blue",  []],
+    ["esp:GND.4",  "bz1:2",      "black", []],
+
+    ["esp:D2",     "led1:A",     "green", []],
+    ["esp:GND.5",  "led1:C",     "black", []]
+  ],
+  "libraries": [
+    { "name": "DHT sensor library", "version": "1.4.4" },
+    { "name": "Adafruit Unified Sensor", "version": "1.1.14" }
+  ]
+}
