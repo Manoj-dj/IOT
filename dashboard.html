@@ -1,0 +1,3102 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Smart-Manhole | Municipal IoT Dashboard</title>
+    <meta name="description"
+        content="Smart Manhole IoT Monitoring System – real-time sensor dashboard with simulator for CH₄, H₂S, water level, temperature and more." />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet" />
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --surface2: #21262d;
+            --border: #30363d;
+            --text: #e6edf3;
+            --muted: #8b949e;
+            --green: #3fb950;
+            --yellow: #d29922;
+            --red: #f85149;
+            --blue: #58a6ff;
+            --teal: #39d353;
+            --accent: #1f6feb;
+            --purple: #bc8cff;
+            --danger-bg: #3d1a1a;
+            --warning-bg: #2d2500;
+            --safe-bg: #0d2318;
+            --sim-bg: #0d1b2a;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ── SIDEBAR ── */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 240px;
+            height: 100vh;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+            overflow-y: auto;
+        }
+
+        .sidebar-logo {
+            padding: 20px 20px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #1f6feb, #388bfd);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        .logo-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: 0.5px;
+        }
+
+        .logo-sub {
+            font-size: 10px;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+
+        .sidebar-section {
+            padding: 16px 12px 8px;
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 16px;
+            margin: 1px 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            color: var(--muted);
+            transition: all 0.2s;
+        }
+
+        .sidebar-item:hover {
+            background: var(--surface2);
+            color: var(--text);
+        }
+
+        .sidebar-item.active {
+            background: rgba(31, 111, 235, 0.15);
+            color: var(--blue);
+        }
+
+        .sidebar-item i {
+            width: 16px;
+            text-align: center;
+            font-size: 13px;
+        }
+
+        .sidebar-item.sim-item.active {
+            background: rgba(188, 140, 255, 0.15);
+            color: var(--purple);
+        }
+
+        .manhole-card {
+            margin: 8px 12px;
+            padding: 12px;
+            background: var(--surface2);
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .manhole-card:hover,
+        .manhole-card.active {
+            border-color: var(--accent);
+            background: rgba(31, 111, 235, 0.1);
+        }
+
+        .mh-id {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--blue);
+        }
+
+        .mh-loc {
+            font-size: 10px;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+
+        .mh-status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+
+        .status-safe {
+            background: var(--green);
+        }
+
+        .status-warning {
+            background: var(--yellow);
+        }
+
+        .status-danger {
+            background: var(--red);
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: 0.3
+            }
+        }
+
+        .sidebar-bottom {
+            margin-top: auto;
+            padding: 16px;
+            border-top: 1px solid var(--border);
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        /* ── MAIN ── */
+        .main {
+            margin-left: 240px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .topbar {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 0 24px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .topbar-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .topbar-title {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .topbar-subtitle {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .live-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            background: rgba(63, 185, 80, 0.12);
+            border: 1px solid rgba(63, 185, 80, 0.3);
+            border-radius: 20px;
+            font-size: 12px;
+            color: var(--green);
+            font-weight: 600;
+        }
+
+        .live-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--green);
+            animation: blink 1.2s infinite;
+        }
+
+        .time-badge {
+            font-size: 12px;
+            color: var(--muted);
+            background: var(--surface2);
+            padding: 5px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .overall-status {
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .status-safe-badge {
+            background: rgba(63, 185, 80, 0.15);
+            color: var(--green);
+            border: 1px solid rgba(63, 185, 80, 0.3);
+        }
+
+        .status-warning-badge {
+            background: rgba(210, 153, 34, 0.15);
+            color: var(--yellow);
+            border: 1px solid rgba(210, 153, 34, 0.3);
+        }
+
+        .status-danger-badge {
+            background: rgba(248, 81, 73, 0.15);
+            color: var(--red);
+            border: 1px solid rgba(248, 81, 73, 0.3);
+        }
+
+        /* ── CONTENT ── */
+        .content {
+            padding: 24px;
+            flex: 1;
+        }
+
+        .view-section {
+            display: none;
+        }
+
+        .view-section:first-child {
+            display: block;
+        }
+
+        /* Worker banner */
+        .entry-banner {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 14px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border: 1px solid;
+            transition: all 0.4s;
+        }
+
+        .entry-banner.permitted {
+            background: var(--safe-bg);
+            border-color: rgba(63, 185, 80, 0.3);
+        }
+
+        .entry-banner.caution {
+            background: var(--warning-bg);
+            border-color: rgba(210, 153, 34, 0.4);
+        }
+
+        .entry-banner.prohibited {
+            background: var(--danger-bg);
+            border-color: rgba(248, 81, 73, 0.4);
+        }
+
+        .entry-icon {
+            font-size: 24px;
+        }
+
+        .entry-text strong {
+            font-size: 14px;
+            display: block;
+        }
+
+        .entry-text span {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        /* Sensor cards */
+        .sensor-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .sensor-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 18px;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sensor-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            border-radius: 14px 14px 0 0;
+        }
+
+        .sensor-card.safe::before {
+            background: var(--green);
+        }
+
+        .sensor-card.warning::before {
+            background: var(--yellow);
+        }
+
+        .sensor-card.danger::before {
+            background: var(--red);
+        }
+
+        .sensor-card.safe {
+            border-color: #1c2d1c;
+        }
+
+        .sensor-card.warning {
+            border-color: #2d2500;
+        }
+
+        .sensor-card.danger {
+            border-color: #3d1a1a;
+        }
+
+        .sc-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .sc-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+        }
+
+        .sc-icon.safe {
+            background: rgba(63, 185, 80, 0.15);
+            color: var(--green);
+        }
+
+        .sc-icon.warning {
+            background: rgba(210, 153, 34, 0.15);
+            color: var(--yellow);
+        }
+
+        .sc-icon.danger {
+            background: rgba(248, 81, 73, 0.15);
+            color: var(--red);
+        }
+
+        .sc-badge {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 10px;
+        }
+
+        .sc-badge.safe {
+            background: rgba(63, 185, 80, 0.15);
+            color: var(--green);
+        }
+
+        .sc-badge.warning {
+            background: rgba(210, 153, 34, 0.15);
+            color: var(--yellow);
+        }
+
+        .sc-badge.danger {
+            background: rgba(248, 81, 73, 0.15);
+            color: var(--red);
+        }
+
+        .sc-label {
+            font-size: 11px;
+            color: var(--muted);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .sc-value {
+            font-size: 28px;
+            font-weight: 700;
+            line-height: 1;
+            margin-bottom: 2px;
+        }
+
+        .sc-unit {
+            font-size: 13px;
+            color: var(--muted);
+            margin-bottom: 10px;
+        }
+
+        .sc-bar-bg {
+            height: 5px;
+            background: var(--surface2);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .sc-bar-fill {
+            height: 5px;
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+
+        .sc-bar-fill.safe {
+            background: var(--green);
+        }
+
+        .sc-bar-fill.warning {
+            background: var(--yellow);
+        }
+
+        .sc-bar-fill.danger {
+            background: var(--red);
+        }
+
+        .sc-threshold {
+            font-size: 10px;
+            color: var(--muted);
+            margin-top: 5px;
+        }
+
+        /* Charts */
+        .charts-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .chart-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px;
+        }
+
+        .chart-card.full {
+            grid-column: 1/-1;
+        }
+
+        .chart-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .chart-title {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .chart-tabs {
+            display: flex;
+            gap: 6px;
+        }
+
+        .chart-tab {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            color: var(--muted);
+            background: transparent;
+            transition: all 0.2s;
+        }
+
+        .chart-tab.active,
+        .chart-tab:hover {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+
+        canvas {
+            width: 100% !important;
+        }
+
+        /* Bottom row */
+        .bottom-row {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .alerts-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        .alert-list {
+            max-height: 320px;
+            overflow-y: auto;
+        }
+
+        .alert-list::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .alert-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .alert-list::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 2px;
+        }
+
+        .alert-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 9px;
+            margin-bottom: 6px;
+            font-size: 12px;
+            border: 1px solid;
+        }
+
+        .alert-item.DANGER {
+            background: var(--danger-bg);
+            border-color: rgba(248, 81, 73, 0.25);
+        }
+
+        .alert-item.WARNING {
+            background: var(--warning-bg);
+            border-color: rgba(210, 153, 34, 0.25);
+        }
+
+        .alert-icon {
+            font-size: 14px;
+            margin-top: 1px;
+        }
+
+        .DANGER .alert-icon {
+            color: var(--red);
+        }
+
+        .WARNING .alert-icon {
+            color: var(--yellow);
+        }
+
+        .alert-sensor {
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .alert-detail {
+            color: var(--muted);
+        }
+
+        .alert-time {
+            font-size: 10px;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+
+        .no-alerts {
+            text-align: center;
+            color: var(--green);
+            padding: 30px;
+            font-size: 13px;
+        }
+
+        .stats-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--surface2);
+        }
+
+        .stat-row:last-child {
+            border-bottom: none;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--muted);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stat-val {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .pulse {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .pulse.green {
+            background: var(--green);
+            box-shadow: 0 0 0 3px rgba(63, 185, 80, 0.2);
+        }
+
+        .pulse.red {
+            background: var(--red);
+            box-shadow: 0 0 0 3px rgba(248, 81, 73, 0.2);
+            animation: blink 1s infinite;
+        }
+
+        .pulse.yellow {
+            background: var(--yellow);
+        }
+
+        .section-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        /* ── SIMULATOR PANEL ── */
+        .sim-panel {
+            background: var(--surface);
+            border: 1px solid rgba(188, 140, 255, 0.3);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sim-panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #bc8cff, #58a6ff, #3fb950);
+        }
+
+        .sim-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .sim-title-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .sim-icon-badge {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, rgba(188, 140, 255, 0.2), rgba(88, 166, 255, 0.2));
+            border: 1px solid rgba(188, 140, 255, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .sim-title {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .sim-subtitle {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+
+        .sim-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #1f6feb, #388bfd);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #388bfd, #58a6ff);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(31, 111, 235, 0.4);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #da3633, #f85149);
+            color: #fff;
+        }
+
+        .btn-danger:hover {
+            background: linear-gradient(135deg, #f85149, #ff7b72);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: var(--surface2);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border);
+        }
+
+        .btn-purple {
+            background: linear-gradient(135deg, #6e40c9, #bc8cff);
+            color: #fff;
+        }
+
+        .btn-purple:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(188, 140, 255, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        /* Manhole Diagram */
+        .sim-layout {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 24px;
+            align-items: start;
+        }
+
+        .manhole-diagram {
+            position: relative;
+        }
+
+        .manhole-svg-wrap {
+            width: 100%;
+            max-width: 280px;
+            margin: 0 auto;
+            display: block;
+        }
+
+        #manhole-svg {
+            width: 100%;
+            height: auto;
+        }
+
+        .diagram-legend {
+            margin-top: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        /* Sensor Controls */
+        .sensor-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+
+        .sim-sensor-card {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 16px;
+            transition: border-color 0.3s;
+        }
+
+        .sim-sensor-card.active-danger {
+            border-color: rgba(248, 81, 73, 0.5);
+            background: rgba(61, 26, 26, 0.4);
+        }
+
+        .sim-sensor-card.active-warning {
+            border-color: rgba(210, 153, 34, 0.5);
+            background: rgba(45, 37, 0, 0.4);
+        }
+
+        .sim-sensor-card.active-safe {
+            border-color: rgba(63, 185, 80, 0.4);
+        }
+
+        .ssc-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .ssc-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .ssc-label i {
+            font-size: 12px;
+        }
+
+        .ssc-badge {
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 8px;
+            letter-spacing: 0.3px;
+        }
+
+        .ssc-badge.safe {
+            background: rgba(63, 185, 80, 0.15);
+            color: var(--green);
+        }
+
+        .ssc-badge.warning {
+            background: rgba(210, 153, 34, 0.15);
+            color: var(--yellow);
+        }
+
+        .ssc-badge.danger {
+            background: rgba(248, 81, 73, 0.15);
+            color: var(--red);
+        }
+
+        .ssc-value-display {
+            font-size: 22px;
+            font-weight: 800;
+            margin-bottom: 8px;
+            line-height: 1.1;
+            transition: color 0.3s;
+        }
+
+        .ssc-unit {
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .ssc-slider-wrap {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 8px 0;
+        }
+
+        .ssc-slider {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 5px;
+            border-radius: 3px;
+            outline: none;
+            transition: background 0.3s;
+            cursor: pointer;
+        }
+
+        .ssc-slider.safe {
+            background: linear-gradient(to right, var(--green) 0%, var(--green) var(--pct, 30%), var(--surface) var(--pct, 30%));
+        }
+
+        .ssc-slider.warning {
+            background: linear-gradient(to right, var(--yellow) 0%, var(--yellow) var(--pct, 60%), var(--surface) var(--pct, 60%));
+        }
+
+        .ssc-slider.danger {
+            background: linear-gradient(to right, var(--red) 0%, var(--red) var(--pct, 80%), var(--surface) var(--pct, 80%));
+        }
+
+        .ssc-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--text);
+            cursor: pointer;
+            box-shadow: 0 0 6px rgba(0, 0, 0, 0.4);
+        }
+
+        .ssc-slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--text);
+            cursor: pointer;
+            border: none;
+        }
+
+        .ssc-range-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 9px;
+            color: var(--muted);
+        }
+
+        .ssc-thresh-row {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .ssc-thresh-item {
+            flex: 1;
+            background: var(--bg);
+            border-radius: 6px;
+            padding: 5px 8px;
+            border: 1px solid var(--border);
+        }
+
+        .ssc-thresh-item label {
+            font-size: 9px;
+            color: var(--muted);
+            display: block;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .ssc-thresh-item input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text);
+            font-size: 12px;
+            font-weight: 600;
+            font-family: inherit;
+        }
+
+        .quick-btns {
+            display: flex;
+            gap: 5px;
+            margin-top: 8px;
+        }
+
+        .qbtn {
+            flex: 1;
+            padding: 4px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid;
+            transition: all 0.15s;
+            text-align: center;
+        }
+
+        .qbtn.q-safe {
+            background: rgba(63, 185, 80, 0.1);
+            color: var(--green);
+            border-color: rgba(63, 185, 80, 0.3);
+        }
+
+        .qbtn.q-safe:hover {
+            background: rgba(63, 185, 80, 0.25);
+        }
+
+        .qbtn.q-warn {
+            background: rgba(210, 153, 34, 0.1);
+            color: var(--yellow);
+            border-color: rgba(210, 153, 34, 0.3);
+        }
+
+        .qbtn.q-warn:hover {
+            background: rgba(210, 153, 34, 0.25);
+        }
+
+        .qbtn.q-danger {
+            background: rgba(248, 81, 73, 0.1);
+            color: var(--red);
+            border-color: rgba(248, 81, 73, 0.3);
+        }
+
+        .qbtn.q-danger:hover {
+            background: rgba(248, 81, 73, 0.25);
+        }
+
+        /* Vibration Toggle */
+        .vibration-toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 8px;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            display: none;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            inset: 0;
+            background: var(--surface);
+            border-radius: 24px;
+            cursor: pointer;
+            transition: background 0.3s;
+            border: 1px solid var(--border);
+        }
+
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            left: 3px;
+            top: 3px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--muted);
+            transition: all 0.3s;
+        }
+
+        .toggle-switch input:checked+.toggle-slider {
+            background: rgba(248, 81, 73, 0.3);
+            border-color: var(--red);
+        }
+
+        .toggle-switch input:checked+.toggle-slider::before {
+            left: 23px;
+            background: var(--red);
+        }
+
+        /* Log config row */
+        .sim-config-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+
+        .sim-config-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .sim-config-item label {
+            font-size: 10px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .sim-config-item select,
+        .sim-config-item input[type=number] {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 7px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: inherit;
+            outline: none;
+            min-width: 100px;
+        }
+
+        .sim-config-item select:focus,
+        .sim-config-item input[type=number]:focus {
+            border-color: var(--accent);
+        }
+
+        /* Generated logs panel */
+        .sim-results-panel {
+            background: var(--surface);
+            border: 1px solid rgba(188, 140, 255, 0.2);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .sim-results-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .sim-stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .sim-stat-box {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 14px;
+            text-align: center;
+        }
+
+        .sim-stat-box .val {
+            font-size: 24px;
+            font-weight: 800;
+            margin-bottom: 2px;
+        }
+
+        .sim-stat-box .lbl {
+            font-size: 10px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .log-table-wrap {
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        .log-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .log-table thead tr {
+            background: var(--surface2);
+        }
+
+        .log-table th {
+            padding: 10px 14px;
+            text-align: left;
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .log-table td {
+            padding: 9px 14px;
+            border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+            vertical-align: middle;
+        }
+
+        .log-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .log-table tr:hover td {
+            background: rgba(33, 38, 45, 0.6);
+        }
+
+        .log-table-scroll {
+            max-height: 420px;
+            overflow-y: auto;
+        }
+
+        .log-table-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .log-table-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .log-table-scroll::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 2px;
+        }
+
+        .status-pill {
+            padding: 3px 9px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+        }
+
+        .status-pill.SAFE {
+            background: rgba(63, 185, 80, 0.15);
+            color: var(--green);
+        }
+
+        .status-pill.WARNING {
+            background: rgba(210, 153, 34, 0.15);
+            color: var(--yellow);
+        }
+
+        .status-pill.DANGER {
+            background: rgba(248, 81, 73, 0.15);
+            color: var(--red);
+        }
+
+        .sim-loading {
+            text-align: center;
+            padding: 48px;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .sim-loading i {
+            font-size: 32px;
+            margin-bottom: 12px;
+            display: block;
+            color: var(--purple);
+        }
+
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Progress bar for generation */
+        .gen-progress {
+            height: 4px;
+            background: var(--surface2);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 12px;
+            display: none;
+        }
+
+        .gen-progress-fill {
+            height: 100%;
+            border-radius: 2px;
+            background: linear-gradient(90deg, #6e40c9, #bc8cff, #58a6ff);
+            animation: progress-anim 1.5s ease-in-out infinite;
+        }
+
+        @keyframes progress-anim {
+            0% {
+                width: 0%
+            }
+
+            50% {
+                width: 80%
+            }
+
+            100% {
+                width: 100%
+            }
+        }
+
+        /* ── REPLAY BANNER ── */
+        .replay-banner {
+            display: none;
+            align-items: center;
+            gap: 16px;
+            padding: 14px 20px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, rgba(110, 64, 201, 0.18), rgba(188, 140, 255, 0.12));
+            border: 1px solid rgba(188, 140, 255, 0.4);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .replay-banner.active {
+            display: flex;
+        }
+
+        .replay-banner::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, #6e40c9, #bc8cff, #58a6ff, #bc8cff, #6e40c9);
+            background-size: 200% 100%;
+            animation: shimmer 2s linear infinite;
+        }
+
+        @keyframes shimmer {
+            0% {
+                background-position: 0% 0
+            }
+
+            100% {
+                background-position: 200% 0
+            }
+        }
+
+        .replay-icon-pulse {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            flex-shrink: 0;
+            background: rgba(188, 140, 255, 0.2);
+            border: 1px solid rgba(188, 140, 255, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            animation: pulse-ring 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse-ring {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(188, 140, 255, 0.4)
+            }
+
+            50% {
+                box-shadow: 0 0 0 8px rgba(188, 140, 255, 0)
+            }
+        }
+
+        .replay-info {
+            flex: 1;
+        }
+
+        .replay-info strong {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--purple);
+            display: block;
+        }
+
+        .replay-info span {
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .replay-progress-bar {
+            height: 4px;
+            background: var(--surface2);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 6px;
+            width: 260px;
+        }
+
+        .replay-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #6e40c9, #bc8cff);
+            border-radius: 2px;
+            transition: width 0.4s ease;
+        }
+
+        .replay-stop-btn {
+            padding: 7px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            background: rgba(248, 81, 73, 0.15);
+            color: var(--red);
+            border: 1px solid rgba(248, 81, 73, 0.3);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .replay-stop-btn:hover {
+            background: rgba(248, 81, 73, 0.3);
+        }
+
+        /* Alert history view */
+        .alerts-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        /* Responsive */
+        @media(max-width: 1100px) {
+            .sim-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .sensor-controls {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media(max-width: 900px) {
+
+            .charts-row,
+            .bottom-row {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                width: 200px;
+            }
+
+            .main {
+                margin-left: 200px;
+            }
+
+            .sim-stats-row {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media(max-width: 640px) {
+            .main {
+                margin-left: 0;
+            }
+
+            .sidebar {
+                transform: translateX(-100%);
+            }
+
+            .sim-stats-row {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+        <div class="sidebar-logo">
+            <div class="logo-icon"><i class="fa fa-circle-radiation" style="color:#fff"></i></div>
+            <div class="logo-title">Smart-Manhole+</div>
+            <div class="logo-sub">Municipal IoT Safety System</div>
+        </div>
+        <div class="sidebar-section">Navigation</div>
+        <div class="sidebar-item active" id="nav-dashboard" onclick="switchView('dashboard', this)"><i
+                class="fa fa-gauge-high"></i> Live Dashboard</div>
+        <div class="sidebar-item sim-item" id="nav-simulator" onclick="switchView('simulator', this)"><i
+                class="fa fa-sliders"></i> Simulator</div>
+        <div class="sidebar-item" id="nav-alerts" onclick="switchView('alerts', this)"><i class="fa fa-bell"></i> Alert
+            History</div>
+        <div class="sidebar-item" id="nav-analytics" onclick="switchView('analytics', this)"><i
+                class="fa fa-chart-line"></i> Analytics</div>
+        <div class="sidebar-item" id="nav-map" onclick="switchView('map', this)"><i class="fa fa-map-pin"></i> Manhole
+            Map</div>
+        <div class="sidebar-item" id="nav-reports" onclick="switchView('reports', this)"><i
+                class="fa fa-file-lines"></i> Reports</div>
+        <div class="sidebar-section">Monitored Manholes</div>
+        <div id="manhole-list"></div>
+        <div class="sidebar-bottom">
+            <div style="font-size:11px;margin-bottom:4px;"><i class="fa fa-circle-check"
+                    style="color:var(--green);margin-right:5px;"></i>System Online</div>
+            <div>ESP32 + NB-IoT Active</div>
+            <div style="margin-top:6px;color:#555;font-size:10px;">v2.2.0 • Chennai Smart City</div>
+        </div>
+    </div>
+
+    <!-- MAIN -->
+    <div class="main">
+        <div class="topbar">
+            <div class="topbar-left">
+                <div>
+                    <div class="topbar-title" id="topbar-title">Smart Manhole Monitoring</div>
+                    <div class="topbar-subtitle" id="topbar-subtitle">Anna Nagar, Chennai · Zone A</div>
+                </div>
+            </div>
+            <div class="topbar-right">
+                <div class="live-badge">
+                    <div class="live-dot"></div>LIVE
+                </div>
+                <div id="topbar-status" class="overall-status status-safe-badge">SAFE</div>
+                <div class="time-badge" id="clock">--:--:--</div>
+            </div>
+        </div>
+
+        <div class="content">
+
+            <!-- ═══════════════════════════════════════════ -->
+            <!-- VIEW: LIVE DASHBOARD -->
+            <!-- ═══════════════════════════════════════════ -->
+            <div id="view-dashboard" class="view-section" style="display:block;">
+
+                <!-- Simulator Replay Banner (shown during replay) -->
+                <div id="replay-banner" class="replay-banner">
+                    <div class="replay-icon-pulse">⚗️</div>
+                    <div class="replay-info">
+                        <strong>⚡ SIMULATOR REPLAY MODE</strong>
+                        <span id="replay-info-text">Sending simulated logs to live dashboard...</span>
+                        <div class="replay-progress-bar">
+                            <div class="replay-progress-fill" id="replay-progress-fill" style="width:0%"></div>
+                        </div>
+                    </div>
+                    <button class="replay-stop-btn" onclick="stopSimReplay()"><i class="fa fa-stop"></i> Stop
+                        Replay</button>
+                </div>
+
+                <!-- Worker Entry Banner -->
+                <div id="entry-banner" class="entry-banner permitted">
+                    <div class="entry-icon" id="entry-icon">🟢</div>
+                    <div class="entry-text">
+                        <strong id="entry-text">WORKER ENTRY: PERMITTED</strong>
+                        <span id="entry-sub">All sensor readings within safe limits. Entry authorised.</span>
+                    </div>
+                </div>
+
+                <!-- Sensor Cards -->
+                <div class="section-label"><i class="fa fa-microchip" style="margin-right:6px;"></i>Sensor Readings —
+                    Real-Time</div>
+                <div class="sensor-grid" id="sensor-grid"></div>
+
+                <!-- Charts -->
+                <div class="section-label"><i class="fa fa-chart-area" style="margin-right:6px;"></i>Trend Analysis
+                    (Last 30 Readings)</div>
+                <div class="charts-row">
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <div class="chart-title"><i class="fa fa-fire"
+                                    style="color:#f85149;margin-right:6px;"></i>Gas Levels Over Time</div>
+                            <div class="chart-tabs">
+                                <button class="chart-tab active" onclick="switchGasChart('methane',this)">CH₄</button>
+                                <button class="chart-tab" onclick="switchGasChart('h2s',this)">H₂S</button>
+                                <button class="chart-tab" onclick="switchGasChart('ammonia',this)">NH₃</button>
+                            </div>
+                        </div>
+                        <canvas id="gasChart" height="180"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <div class="chart-title"><i class="fa fa-water"
+                                    style="color:#58a6ff;margin-right:6px;"></i>Water Level &amp; Temperature</div>
+                        </div>
+                        <canvas id="envChart" height="180"></canvas>
+                    </div>
+                </div>
+                <div class="charts-row">
+                    <div class="chart-card full">
+                        <div class="chart-header">
+                            <div class="chart-title"><i class="fa fa-timeline"
+                                    style="color:#39d353;margin-right:6px;"></i>All Sensors Combined — Normalised View
+                                (0–100%)</div>
+                        </div>
+                        <canvas id="allChart" height="130"></canvas>
+                    </div>
+                </div>
+
+                <!-- Bottom Row -->
+                <div class="bottom-row">
+                    <div class="alerts-card">
+                        <div class="chart-header" style="margin-bottom:12px;">
+                            <div class="chart-title"><i class="fa fa-triangle-exclamation"
+                                    style="color:var(--yellow);margin-right:6px;"></i>Live Alert Feed</div>
+                            <span id="alert-count" style="font-size:11px;color:var(--muted);"></span>
+                        </div>
+                        <div class="alert-list" id="alert-list">
+                            <div class="no-alerts"><i class="fa fa-circle-check"
+                                    style="font-size:22px;display:block;margin-bottom:8px;"></i>No active alerts</div>
+                        </div>
+                    </div>
+                    <div class="stats-card">
+                        <div class="section-label" style="margin-bottom:14px;"><i class="fa fa-info-circle"
+                                style="margin-right:6px;"></i>System Status</div>
+                        <div class="stat-row">
+                            <div class="stat-label"><span class="pulse green" id="conn-pulse"></span>Connection</div>
+                            <div class="stat-val" id="stat-conn" style="color:var(--green)">Online</div>
+                        </div>
+                        <div class="stat-row">
+                            <div class="stat-label"><i class="fa fa-microchip" style="color:var(--blue);"></i>
+                                Controller</div>
+                            <div class="stat-val">ESP32</div>
+                        </div>
+                        <div class="stat-row">
+                            <div class="stat-label"><i class="fa fa-satellite-dish" style="color:var(--muted);"></i>
+                                Communication</div>
+                            <div class="stat-val">NB-IoT / GSM</div>
+                        </div>
+                        <div class="stat-row">
+                            <div class="stat-label"><i class="fa fa-location-dot" style="color:var(--red);"></i> Manhole
+                                ID</div>
+                            <div class="stat-val" id="stat-id">MH-001</div>
+                        </div>
+                        <div class="stat-row">
+                            <div class="stat-label"><i class="fa fa-map-marker" style="color:var(--muted);"></i> Zone
+                            </div>
+                            <div class="stat-val">Zone A</div>
+                        </div>
+                        <div class="stat-row">
+                            <div class="stat-label"><i class="fa fa-refresh" style="color:var(--muted);"></i> Poll Rate
+                            </div>
+                            <div class="stat-val">3 sec</div>
+                        </div>
+                        <div class="stat-row">
+                            <div class="stat-label"><i class="fa fa-clock" style="color:var(--muted);"></i> Last Update
+                            </div>
+                            <div class="stat-val" id="stat-time" style="font-size:11px;">--</div>
+                        </div>
+                        <div class="stat-row">
+                            <div class="stat-label"><i class="fa fa-bell" style="color:var(--yellow);"></i> Total Alerts
+                            </div>
+                            <div class="stat-val" id="stat-alerts">0</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- /view-dashboard -->
+
+            <!-- ═══════════════════════════════════════════ -->
+            <!-- VIEW: SIMULATOR -->
+            <!-- ═══════════════════════════════════════════ -->
+            <div id="view-simulator" class="view-section" style="display:none;">
+
+                <!-- Simulator Header Panel -->
+                <div class="sim-panel">
+                    <div class="sim-header">
+                        <div class="sim-title-group">
+                            <div class="sim-icon-badge">⚗️</div>
+                            <div>
+                                <div class="sim-title">Manhole Sensor Simulator</div>
+                                <div class="sim-subtitle">Set sensor levels → click Generate Logs → view synthetic data
+                                    below</div>
+                            </div>
+                        </div>
+                        <div class="sim-actions">
+                            <button class="btn btn-secondary" id="btn-reset-sim" onclick="resetSimulator()"><i
+                                    class="fa fa-rotate-left"></i> Reset</button>
+                            <button class="btn btn-purple" id="btn-generate" onclick="generateLogs()"><i
+                                    class="fa fa-bolt"></i> Generate Logs</button>
+                        </div>
+                    </div>
+
+                    <!-- Progress bar -->
+                    <div class="gen-progress" id="gen-progress">
+                        <div class="gen-progress-fill"></div>
+                    </div>
+
+                    <!-- Diagram + Controls layout -->
+                    <div class="sim-layout">
+
+                        <!-- Visual Manhole Diagram -->
+                        <div class="manhole-diagram">
+                            <div class="manhole-svg-wrap">
+                                <svg id="manhole-svg" viewBox="0 0 260 340" xmlns="http://www.w3.org/2000/svg">
+                                    <defs>
+                                        <radialGradient id="streetGrad" cx="50%" cy="50%">
+                                            <stop offset="0%" stop-color="#2d333b" />
+                                            <stop offset="100%" stop-color="#1a1f26" />
+                                        </radialGradient>
+                                        <linearGradient id="wallGrad" x1="0" y1="0" x2="1" y2="0">
+                                            <stop offset="0%" stop-color="#30363d" />
+                                            <stop offset="100%" stop-color="#21262d" />
+                                        </linearGradient>
+                                        <linearGradient id="waterGrad" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stop-color="rgba(88,166,255,0.6)" />
+                                            <stop offset="100%" stop-color="rgba(31,111,235,0.8)" />
+                                        </linearGradient>
+                                        <filter id="glow">
+                                            <feGaussianBlur stdDeviation="2" result="coloredBlur" />
+                                            <feMerge>
+                                                <feMergeNode in="coloredBlur" />
+                                                <feMergeNode in="SourceGraphic" />
+                                            </feMerge>
+                                        </filter>
+                                    </defs>
+
+                                    <!-- Street surface -->
+                                    <ellipse cx="130" cy="40" rx="120" ry="30" fill="url(#streetGrad)" stroke="#30363d"
+                                        stroke-width="2" />
+                                    <!-- Street texture lines -->
+                                    <line x1="30" y1="40" x2="230" y2="40" stroke="#30363d" stroke-width="1" />
+                                    <line x1="10" y1="50" x2="250" y2="50" stroke="#21262d" stroke-width="1" />
+
+                                    <!-- Manhole cover ring -->
+                                    <ellipse cx="130" cy="40" rx="52" ry="14" fill="#161b22" stroke="#58a6ff"
+                                        stroke-width="1.5" />
+                                    <ellipse cx="130" cy="40" rx="40" ry="10" fill="#0d1117" stroke="#30363d"
+                                        stroke-width="1" />
+                                    <!-- Cover grate lines -->
+                                    <line x1="96" y1="40" x2="164" y2="40" stroke="#30363d" stroke-width="1.5" />
+                                    <line x1="130" y1="30" x2="130" y2="50" stroke="#30363d" stroke-width="1.5" />
+                                    <line x1="108" y1="33" x2="152" y2="47" stroke="#21262d" stroke-width="1" />
+                                    <line x1="108" y1="47" x2="152" y2="33" stroke="#21262d" stroke-width="1" />
+
+                                    <!-- Shaft walls -->
+                                    <path d="M78,40 L55,290 L205,290 L182,40" fill="url(#wallGrad)" stroke="#30363d"
+                                        stroke-width="1.5" />
+                                    <!-- Inner shaft shading -->
+                                    <path d="M82,40 L62,285 L88,285 L95,40 Z" fill="rgba(0,0,0,0.2)" />
+                                    <path d="M174,40 L168,285 L198,285 L178,40 Z" fill="rgba(0,0,0,0.2)" />
+
+                                    <!-- Bottom floor -->
+                                    <ellipse cx="130" cy="290" rx="75" ry="12" fill="#1a1f26" stroke="#30363d"
+                                        stroke-width="1.5" />
+
+                                    <!-- Water level (animated) -->
+                                    <clipPath id="waterClip">
+                                        <rect x="60" y="0" width="140" height="300" />
+                                    </clipPath>
+                                    <ellipse id="svg-water" cx="130" cy="275" rx="65" ry="10" fill="url(#waterGrad)"
+                                        opacity="0.9" clip-path="url(#waterClip)">
+                                        <animate attributeName="ry" values="10;12;10" dur="2s"
+                                            repeatCount="indefinite" />
+                                    </ellipse>
+                                    <rect id="svg-water-col" x="65" y="265" width="130" height="25"
+                                        fill="url(#waterGrad)" opacity="0.6" clip-path="url(#waterClip)" />
+
+                                    <!-- Gas cloud indicator -->
+                                    <g id="svg-gas-group" opacity="0.7">
+                                        <ellipse id="svg-gas1" cx="105" cy="160" rx="22" ry="14" fill="#f85149"
+                                            opacity="0.15" />
+                                        <ellipse id="svg-gas2" cx="150" cy="140" rx="18" ry="12" fill="#f85149"
+                                            opacity="0.1" />
+                                        <ellipse id="svg-gas3" cx="125" cy="180" rx="16" ry="10" fill="#ff7b72"
+                                            opacity="0.12" />
+                                    </g>
+
+                                    <!-- Sensor Icons in the shaft -->
+                                    <!-- Gas sensor -->
+                                    <g id="svg-sensor-gas" transform="translate(90,130)">
+                                        <circle r="12" fill="rgba(248,81,73,0.15)" stroke="#f85149" stroke-width="1.5"
+                                            filter="url(#glow)" />
+                                        <text x="0" y="4" text-anchor="middle" font-size="10" fill="#f85149">⚡</text>
+                                    </g>
+                                    <!-- Water sensor -->
+                                    <g id="svg-sensor-water" transform="translate(165,250)">
+                                        <circle r="11" fill="rgba(88,166,255,0.15)" stroke="#58a6ff"
+                                            stroke-width="1.5" />
+                                        <text x="0" y="4" text-anchor="middle" font-size="9" fill="#58a6ff">💧</text>
+                                    </g>
+                                    <!-- Temp sensor -->
+                                    <g id="svg-sensor-temp" transform="translate(90,230)">
+                                        <circle r="11" fill="rgba(240,136,62,0.15)" stroke="#f0883e"
+                                            stroke-width="1.5" />
+                                        <text x="0" y="4" text-anchor="middle" font-size="9" fill="#f0883e">🌡</text>
+                                    </g>
+                                    <!-- NH3 sensor -->
+                                    <g id="svg-sensor-nh3" transform="translate(160,170)">
+                                        <circle r="11" fill="rgba(188,140,255,0.15)" stroke="#bc8cff"
+                                            stroke-width="1.5" />
+                                        <text x="0" y="4" text-anchor="middle" font-size="9" fill="#bc8cff">🧪</text>
+                                    </g>
+
+                                    <!-- Sensor labels -->
+                                    <text x="70" y="118" font-size="8" fill="#f85149"
+                                        font-family="Inter, sans-serif">Gas</text>
+                                    <text x="142" y="258" font-size="8" fill="#58a6ff"
+                                        font-family="Inter, sans-serif">Water</text>
+                                    <text x="68" y="238" font-size="8" fill="#f0883e"
+                                        font-family="Inter, sans-serif">Temp</text>
+                                    <text x="136" y="178" font-size="8" fill="#bc8cff"
+                                        font-family="Inter, sans-serif">NH₃</text>
+
+                                    <!-- Overall status ring at top -->
+                                    <ellipse id="svg-status-ring" cx="130" cy="40" rx="52" ry="14" fill="none"
+                                        stroke="#3fb950" stroke-width="2" opacity="0.6" />
+
+                                    <!-- Depth markers -->
+                                    <line x1="200" y1="40" x2="220" y2="40" stroke="#30363d" stroke-width="1"
+                                        stroke-dasharray="3" />
+                                    <line x1="200" y1="165" x2="220" y2="165" stroke="#30363d" stroke-width="1"
+                                        stroke-dasharray="3" />
+                                    <line x1="200" y1="290" x2="220" y2="290" stroke="#30363d" stroke-width="1"
+                                        stroke-dasharray="3" />
+                                    <text x="222" y="44" font-size="8" fill="#555"
+                                        font-family="Inter, sans-serif">0m</text>
+                                    <text x="222" y="169" font-size="8" fill="#555"
+                                        font-family="Inter, sans-serif">1.5m</text>
+                                    <text x="222" y="294" font-size="8" fill="#555"
+                                        font-family="Inter, sans-serif">3m</text>
+                                </svg>
+                            </div>
+                            <div class="diagram-legend">
+                                <div class="legend-item">
+                                    <div class="legend-dot" style="background:#f85149;"></div>Gas Sensors (CH₄, H₂S,
+                                    NH₃)
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-dot" style="background:#58a6ff;"></div>Water Level Sensor
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-dot" style="background:#f0883e;"></div>Temperature &amp; Humidity
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-dot" style="background:#bc8cff;"></div>Vibration / Movement
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sensor Controls -->
+                        <div>
+                            <div style="margin-bottom:14px;">
+                                <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Set Sensor Values &amp;
+                                    Thresholds</div>
+                                <div style="font-size:11px;color:var(--muted);">Drag sliders or use quick-set buttons.
+                                    Click <strong style="color:var(--purple)">Generate Logs</strong> when ready.</div>
+                            </div>
+                            <div class="sensor-controls" id="sensor-controls"></div>
+
+                            <!-- Simulation config -->
+                            <div class="sim-config-row">
+                                <div class="sim-config-item">
+                                    <label>Num Logs</label>
+                                    <input type="number" id="sim-num-logs" value="20" min="1" max="100"
+                                        style="width:90px;">
+                                </div>
+                                <div class="sim-config-item">
+                                    <label>Time Step</label>
+                                    <select id="sim-time-step">
+                                        <option value="5">5 sec</option>
+                                        <option value="15">15 sec</option>
+                                        <option value="30" selected>30 sec</option>
+                                        <option value="60">1 min</option>
+                                        <option value="300">5 min</option>
+                                    </select>
+                                </div>
+                                <div class="sim-config-item">
+                                    <label>Manhole ID</label>
+                                    <select id="sim-manhole-id">
+                                        <option value="SIM-001">SIM-001</option>
+                                        <option value="SIM-002">SIM-002</option>
+                                        <option value="MH-001">MH-001</option>
+                                        <option value="MH-002">MH-002</option>
+                                    </select>
+                                </div>
+                                <div class="sim-config-item">
+                                    <label>Noise Level</label>
+                                    <select id="sim-noise">
+                                        <option value="0.02">Low (2%)</option>
+                                        <option value="0.05" selected>Medium (5%)</option>
+                                        <option value="0.12">High (12%)</option>
+                                        <option value="0.25">Extreme (25%)</option>
+                                    </select>
+                                </div>
+                                <div style="margin-left:auto;">
+                                    <button class="btn btn-purple" id="btn-generate-2" onclick="generateLogs()"><i
+                                            class="fa fa-bolt"></i> Generate Logs</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Generated Logs Results -->
+                <div class="sim-results-panel" id="sim-results-panel" style="display:none;">
+                    <div class="sim-results-header">
+                        <div>
+                            <div style="font-size:15px;font-weight:700;">
+                                <i class="fa fa-table-list" style="color:var(--purple);margin-right:8px;"></i>
+                                Generated Simulation Logs
+                            </div>
+                            <div style="font-size:11px;color:var(--muted);margin-top:2px;" id="sim-result-meta"></div>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                            <div style="display:flex;align-items:center;gap:6px;">
+                                <label style="font-size:11px;color:var(--muted);">Replay Speed:</label>
+                                <select id="replay-speed"
+                                    style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:6px;font-size:12px;font-family:inherit;outline:none;">
+                                    <option value="500">Fast (0.5s)</option>
+                                    <option value="1500" selected>Normal (1.5s)</option>
+                                    <option value="3000">Slow (3s)</option>
+                                    <option value="5000">Very Slow (5s)</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-purple" id="btn-send-live" onclick="startSimReplay()"><i
+                                    class="fa fa-arrow-right"></i> Send to Live Dashboard</button>
+                            <button class="btn btn-secondary" onclick="exportSimCSV()"><i class="fa fa-download"></i>
+                                Export CSV</button>
+                            <button class="btn btn-secondary" onclick="clearSimResults()"><i class="fa fa-trash"></i>
+                                Clear</button>
+                        </div>
+                    </div>
+
+                    <!-- Summary stats -->
+                    <div class="sim-stats-row">
+                        <div class="sim-stat-box">
+                            <div class="val" id="sim-stat-total" style="color:var(--blue)">0</div>
+                            <div class="lbl">Total Logs</div>
+                        </div>
+                        <div class="sim-stat-box">
+                            <div class="val" id="sim-stat-danger" style="color:var(--red)">0</div>
+                            <div class="lbl">Danger Events</div>
+                        </div>
+                        <div class="sim-stat-box">
+                            <div class="val" id="sim-stat-warning" style="color:var(--yellow)">0</div>
+                            <div class="lbl">Warnings</div>
+                        </div>
+                        <div class="sim-stat-box">
+                            <div class="val" id="sim-stat-safe" style="color:var(--green)">0</div>
+                            <div class="lbl">Safe Events</div>
+                        </div>
+                    </div>
+
+                    <!-- Charts for sim data -->
+                    <div class="charts-row" style="margin-bottom:16px;">
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <div class="chart-title"><i class="fa fa-fire"
+                                        style="color:#f85149;margin-right:6px;"></i>Simulated Gas Levels</div>
+                            </div>
+                            <canvas id="simGasChart" height="160"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <div class="chart-title"><i class="fa fa-water"
+                                        style="color:#58a6ff;margin-right:6px;"></i>Water, Temp &amp; Humidity</div>
+                            </div>
+                            <canvas id="simEnvChart" height="160"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Log table -->
+                    <div class="section-label"><i class="fa fa-list" style="margin-right:6px;"></i>Detailed Log Entries
+                    </div>
+                    <div class="log-table-wrap">
+                        <div class="log-table-scroll">
+                            <table class="log-table">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Timestamp</th>
+                                        <th>Status</th>
+                                        <th>CH₄ (ppm)</th>
+                                        <th>H₂S (ppm)</th>
+                                        <th>Water (cm)</th>
+                                        <th>Temp (°C)</th>
+                                        <th>Hum (%)</th>
+                                        <th>NH₃ (ppm)</th>
+                                        <th>Vibration</th>
+                                        <th>Alerts</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sim-log-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Empty state -->
+                <div class="sim-results-panel" id="sim-empty-state" style="text-align:center;padding:48px;">
+                    <div style="font-size:48px;margin-bottom:16px;opacity:0.4;">⚗️</div>
+                    <div style="font-size:16px;font-weight:600;margin-bottom:8px;">No simulation run yet</div>
+                    <div style="font-size:13px;color:var(--muted);margin-bottom:24px;">Configure sensor values above and
+                        click <strong style="color:var(--purple)">Generate Logs</strong> to simulate a batch of
+                        readings.</div>
+                    <button class="btn btn-purple" onclick="generateLogs()"><i class="fa fa-bolt"></i> Generate Logs
+                        Now</button>
+                </div>
+
+            </div><!-- /view-simulator -->
+
+            <!-- ═══════════════════════════════════════════ -->
+            <!-- VIEW: ALERT HISTORY -->
+            <!-- ═══════════════════════════════════════════ -->
+            <div id="view-alerts" class="view-section" style="display:none;">
+                <div class="section-label"><i class="fa fa-bell" style="margin-right:6px;"></i>System Alert History
+                </div>
+                <div class="alerts-card" style="padding:0;">
+                    <div
+                        style="padding:20px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+                        <h3 style="font-size:16px;">Past Incidents</h3>
+                        <div style="display:flex;gap:8px;">
+                            <button
+                                style="padding:6px 12px; background:rgba(188,140,255,0.1); color:var(--purple); border:1px solid rgba(188,140,255,0.3); border-radius:6px; font-size:12px; cursor:pointer;"
+                                onclick="loadFullAlerts('sim')"><i class="fa fa-sliders"
+                                    style="margin-right:5px;"></i>Simulator Alerts</button>
+                            <button
+                                style="padding:6px 12px; background:transparent; color:var(--text); border:1px solid var(--border); border-radius:6px; font-size:12px; cursor:pointer;"
+                                onclick="loadFullAlerts('live')"><i class="fa fa-rotate-right"
+                                    style="margin-right:5px;"></i>Live Alerts</button>
+                        </div>
+                    </div>
+                    <table style="width:100%; border-collapse:collapse; text-align:left; font-size:13px;">
+                        <thead>
+                            <tr style="background:var(--surface2); border-bottom:1px solid var(--border);">
+                                <th style="padding:12px 16px;">Timestamp</th>
+                                <th style="padding:12px 16px;">Manhole ID</th>
+                                <th style="padding:12px 16px;">Source</th>
+                                <th style="padding:12px 16px;">Level</th>
+                                <th style="padding:12px 16px;">Sensor</th>
+                                <th style="padding:12px 16px;">Value</th>
+                                <th style="padding:12px 16px;">Threshold</th>
+                            </tr>
+                        </thead>
+                        <tbody id="full-alert-list">
+                            <tr>
+                                <td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">Loading
+                                    alerts...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════ -->
+            <!-- VIEW: ANALYTICS -->
+            <!-- ═══════════════════════════════════════════ -->
+            <div id="view-analytics" class="view-section" style="display:none;">
+                <div class="section-label"><i class="fa fa-chart-line" style="margin-right:6px;"></i>System Analytics
+                </div>
+                <div class="charts-row" style="grid-template-columns:1fr; margin-bottom:16px;">
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <div class="chart-title"><i class="fa fa-history"
+                                    style="color:var(--accent);margin-right:6px;"></i>Historical Environmental Data
+                                (Last 100 Logs)</div>
+                            <button
+                                style="padding:6px 12px; background:var(--surface2); color:white; border:1px solid var(--border); border-radius:6px; font-size:12px; cursor:pointer;"
+                                onclick="loadAnalytics()"><i class="fa fa-refresh"></i> Refresh Data</button>
+                        </div>
+                        <canvas id="historicalChart" height="80"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════ -->
+            <!-- VIEW: MAP -->
+            <!-- ═══════════════════════════════════════════ -->
+            <div id="view-map" class="view-section" style="display:none;">
+                <div class="section-label"><i class="fa fa-map-pin" style="margin-right:6px;"></i>Live Manhole Map</div>
+                <div id="map-container"
+                    style="background:var(--surface); border:1px solid var(--border); border-radius:14px; position:relative; height:600px; overflow:hidden;">
+                    <!-- Leaflet Map will be mounted here -->
+                </div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════ -->
+            <!-- VIEW: REPORTS -->
+            <!-- ═══════════════════════════════════════════ -->
+            <div id="view-reports" class="view-section" style="display:none;">
+                <div class="section-label"><i class="fa fa-file-lines" style="margin-right:6px;"></i>Compliance &amp;
+                    Reports</div>
+                <div class="sensor-grid" style="grid-template-columns:1fr 1fr;">
+                    <div class="chart-card">
+                        <div style="font-size:16px; font-weight:600; margin-bottom:10px;"><i class="fa fa-file-pdf"
+                                style="color:#f85149; margin-right:8px;"></i>Monthly Hazard Report</div>
+                        <p style="color:var(--muted); font-size:13px; margin-bottom:20px; line-height:1.5;">Download the
+                            compiled safety compliance report containing all threshold breaches and maintenance
+                            activities for the current month.</p>
+                        <button
+                            style="padding:10px 20px; background:var(--accent); color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;"
+                            onclick="exportPDF()"><i class="fa fa-download" style="margin-right:8px;"></i> Download
+                            PDF</button>
+                    </div>
+                    <div class="chart-card">
+                        <div style="font-size:16px; font-weight:600; margin-bottom:10px;"><i class="fa fa-file-csv"
+                                style="color:#3fb950; margin-right:8px;"></i>Raw Sensor Data Export</div>
+                        <p style="color:var(--muted); font-size:13px; margin-bottom:20px; line-height:1.5;">Export raw
+                            telemetry data (methane, H2S, water level, etc.) for deeper offline analysis or archival in
+                            your data warehouse.</p>
+                        <button
+                            style="padding:10px 20px; background:var(--surface2); color:white; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-weight:600;"
+                            onclick="exportCSV()"><i class="fa fa-table" style="margin-right:8px;"></i> Export as
+                            CSV</button>
+                    </div>
+                    <div class="chart-card">
+                        <div style="font-size:16px; font-weight:600; margin-bottom:10px;"><i class="fa fa-envelope"
+                                style="color:var(--blue); margin-right:8px;"></i>Automated Notifications</div>
+                        <p style="color:var(--muted); font-size:13px; margin-bottom:20px; line-height:1.5;">Configure
+                            daily or weekly digests sent automatically to safety inspectors and municipal supervisors
+                            via email or SMS.</p>
+                        <button
+                            style="padding:10px 20px; background:var(--surface2); color:white; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-weight:600;"
+                            onclick="alert('Notification Settings opened.')"><i class="fa fa-gear"
+                                style="margin-right:8px;"></i> Configure Digest</button>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /content -->
+    </div><!-- /main -->
+
+    <script>
+        const API = '';  // Same origin; change to 'http://localhost:8000' when serving separately
+
+        // ── Sensor definitions ─────────────────────────────────────────────────────
+        const SENSORS = [
+            { key: 'methane', label: 'Methane (CH₄)', icon: 'fa-fire', unit: 'ppm', max: 2000, warn: 500, danger: 1000, default: 200 },
+            { key: 'h2s', label: 'Hydrogen Sulfide', icon: 'fa-skull-crossbones', unit: 'ppm', max: 50, warn: 5, danger: 10, default: 2 },
+            { key: 'water_level', label: 'Water Level', icon: 'fa-water', unit: 'cm', max: 100, warn: 55, danger: 75, default: 20 },
+            { key: 'temperature', label: 'Temperature', icon: 'fa-temperature-high', unit: '°C', max: 70, warn: 40, danger: 50, default: 30 },
+            { key: 'humidity', label: 'Humidity', icon: 'fa-droplet', unit: '%', max: 100, warn: 78, danger: 90, default: 62 },
+            { key: 'ammonia', label: 'Ammonia (NH₃)', icon: 'fa-flask', unit: 'ppm', max: 400, warn: 100, danger: 200, default: 55 },
+            { key: 'vibration', label: 'Vibration', icon: 'fa-wave-square', unit: 'flag', max: 1, warn: null, danger: 1, default: 0 },
+        ];
+
+        const MANHOLES = [
+            { id: 'MH-001', location: 'Anna Nagar, Chennai', zone: 'Zone A', lat: 13.0850, lng: 80.2101 },
+            { id: 'MH-002', location: 'T. Nagar, Chennai', zone: 'Zone B', lat: 13.0405, lng: 80.2337 },
+            { id: 'MH-003', location: 'Adyar, Chennai', zone: 'Zone C', lat: 13.0033, lng: 80.2555 },
+            { id: 'MH-004', location: 'Tambaram, Chennai', zone: 'Zone D', lat: 12.9229, lng: 80.1275 },
+        ];
+
+        let currentMH = 'MH-001';
+        let history = { labels: [], methane: [], h2s: [], water_level: [], temperature: [], humidity: [], ammonia: [], vibration: [] };
+        let totalAlerts = 0;
+        let gasChartKey = 'methane';
+        let gasChart, envChart, allChart;
+        let simGasChart, simEnvChart;
+        let currentSimLogs = [];
+
+        // ── Clock ──────────────────────────────────────────────────────────────────
+        setInterval(() => {
+            document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-IN', { hour12: false });
+        }, 1000);
+
+        // ── View Navigation ────────────────────────────────────────────────────────
+        function switchView(viewId, btnEl) {
+            document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+            if (btnEl && btnEl.classList) btnEl.classList.add('active');
+            document.querySelectorAll('.view-section').forEach(el => el.style.display = 'none');
+            const activeView = document.getElementById('view-' + viewId);
+            if (activeView) activeView.style.display = 'block';
+
+            if (viewId === 'alerts') loadFullAlerts('live');
+            if (viewId === 'analytics') loadAnalytics();
+            if (viewId === 'map') setTimeout(initMap, 100);
+        }
+
+        // ── Sidebar Manholes ───────────────────────────────────────────────────────
+        function buildSidebar() {
+            const el = document.getElementById('manhole-list');
+            el.innerHTML = MANHOLES.map(m => `
+    <div class="manhole-card ${m.id === currentMH ? 'active' : ''}" onclick="selectMH('${m.id}','${m.location}','${m.zone}')">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div class="mh-id">${m.id}</div>
+        <span class="mh-status-dot status-safe" id="dot-${m.id}"></span>
+      </div>
+      <div class="mh-loc">${m.location}</div>
+    </div>`).join('');
+        }
+        buildSidebar();
+
+        function selectMH(id, loc, zone) {
+            currentMH = id;
+            document.getElementById('topbar-title').textContent = `Smart Manhole — ${id}`;
+            document.getElementById('topbar-subtitle').textContent = `${loc} · ${zone}`;
+            document.getElementById('stat-id').textContent = id;
+            history = { labels: [], methane: [], h2s: [], water_level: [], temperature: [], humidity: [], ammonia: [], vibration: [] };
+            buildSidebar();
+        }
+
+        // ── Live Sensor Cards ──────────────────────────────────────────────────────
+        function buildCards() {
+            const g = document.getElementById('sensor-grid');
+            g.innerHTML = SENSORS.map(s => `
+    <div class="sensor-card safe" id="card-${s.key}">
+      <div class="sc-header">
+        <div class="sc-icon safe" id="icon-${s.key}"><i class="fa ${s.icon}"></i></div>
+        <span class="sc-badge safe" id="badge-${s.key}">SAFE</span>
+      </div>
+      <div class="sc-label">${s.label}</div>
+      <div class="sc-value" id="val-${s.key}">--</div>
+      <div class="sc-unit">${s.unit}</div>
+      <div class="sc-bar-bg"><div class="sc-bar-fill safe" id="bar-${s.key}" style="width:0%"></div></div>
+      <div class="sc-threshold" id="thr-${s.key}">Danger: ${s.danger} ${s.unit}</div>
+    </div>`).join('');
+        }
+        buildCards();
+
+        function levelOf(key, val) {
+            const s = SENSORS.find(x => x.key === key);
+            if (!s) return 'safe';
+            if (val >= s.danger) return 'danger';
+            if (s.warn !== null && val >= s.warn) return 'warning';
+            return 'safe';
+        }
+
+        function updateCards(data) {
+            SENSORS.forEach(s => {
+                const val = data[s.key];
+                if (val === undefined) return;
+                const level = levelOf(s.key, val);
+                const card = document.getElementById('card-' + s.key);
+                const icon = document.getElementById('icon-' + s.key);
+                const badge = document.getElementById('badge-' + s.key);
+                const bar = document.getElementById('bar-' + s.key);
+                const valEl = document.getElementById('val-' + s.key);
+                ['safe', 'warning', 'danger'].forEach(c => { card.classList.remove(c); icon.classList.remove(c); badge.classList.remove(c); bar.classList.remove(c); });
+                card.classList.add(level); icon.classList.add(level); badge.classList.add(level); bar.classList.add(level);
+                badge.textContent = level.toUpperCase();
+                valEl.textContent = s.key === 'vibration' ? (val ? 'DETECTED' : 'NORMAL') : val;
+                const pct = Math.min(100, (val / s.max) * 100);
+                bar.style.width = pct + '%';
+            });
+        }
+
+        function updateBanner(data) {
+            const b = document.getElementById('entry-banner');
+            const txt = document.getElementById('entry-text');
+            const sub = document.getElementById('entry-sub');
+            const ico = document.getElementById('entry-icon');
+            const we = data.worker_entry || 'PERMITTED';
+            b.className = 'entry-banner ' + we.toLowerCase();
+            const map = {
+                PERMITTED: ['🟢', 'WORKER ENTRY: PERMITTED', 'All sensor readings within safe limits. Entry authorised.'],
+                CAUTION: ['🟡', 'WORKER ENTRY: CAUTION ADVISED', 'Some readings elevated. Use PPE and proceed carefully.'],
+                PROHIBITED: ['🔴', 'WORKER ENTRY: STRICTLY PROHIBITED', 'Hazardous levels detected. Do NOT enter. Contact supervisor.'],
+            };
+            const [i, t, s] = map[we] || map['PERMITTED'];
+            ico.textContent = i; txt.textContent = t; sub.textContent = s;
+        }
+
+        function updateStatus(data) {
+            const st = data.status || 'SAFE';
+            const el = document.getElementById('topbar-status');
+            el.className = 'overall-status ' + { SAFE: 'status-safe-badge', WARNING: 'status-warning-badge', DANGER: 'status-danger-badge' }[st];
+            el.textContent = st;
+            const dot = document.getElementById('dot-' + currentMH);
+            if (dot) dot.className = 'mh-status-dot status-' + st.toLowerCase();
+        }
+
+        function updateAlerts(data) {
+            const alerts = data.alerts || [];
+            const list = document.getElementById('alert-list');
+            totalAlerts += alerts.length;
+            document.getElementById('stat-alerts').textContent = totalAlerts;
+            document.getElementById('alert-count').textContent = alerts.length > 0 ? `${alerts.length} active` : 'All clear';
+            if (alerts.length === 0) {
+                list.innerHTML = '<div class="no-alerts"><i class="fa fa-circle-check" style="font-size:22px;display:block;margin-bottom:8px;"></i>No active alerts</div>';
+                return;
+            }
+            list.innerHTML = alerts.map(a => `
+    <div class="alert-item ${a.level}">
+      <i class="fa ${a.level === 'DANGER' ? 'fa-triangle-exclamation' : 'fa-circle-exclamation'} alert-icon"></i>
+      <div>
+        <div class="alert-sensor">${a.label || a.sensor} — ${a.level}</div>
+        <div class="alert-detail">Current: ${a.value} ${a.unit} · Threshold: ${a.threshold} ${a.unit}</div>
+        <div class="alert-time">${a.time || 'now'} · ${currentMH}</div>
+      </div>
+    </div>`).join('');
+        }
+
+        // ── Charts Init ────────────────────────────────────────────────────────────
+        const chartDefaults = {
+            responsive: true, maintainAspectRatio: true,
+            animation: { duration: 400 },
+            plugins: {
+                legend: { labels: { color: '#8b949e', font: { size: 11 } } },
+                tooltip: { backgroundColor: '#21262d', borderColor: '#30363d', borderWidth: 1, titleColor: '#e6edf3', bodyColor: '#8b949e' }
+            },
+            scales: {
+                x: { ticks: { color: '#555', font: { size: 9 }, maxRotation: 0, maxTicksLimit: 8 }, grid: { color: '#21262d' }, border: { color: '#30363d' } },
+                y: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: '#1a1f27' }, border: { color: '#30363d' } }
+            }
+        };
+
+        gasChart = new Chart(document.getElementById('gasChart').getContext('2d'), {
+            type: 'line',
+            data: { labels: [], datasets: [{ label: 'Methane (ppm)', data: [], borderColor: '#f85149', backgroundColor: 'rgba(248,81,73,0.08)', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: true }] },
+            options: { ...chartDefaults, scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, suggestedMax: 2000 } } }
+        });
+
+        envChart = new Chart(document.getElementById('envChart').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: [], datasets: [
+                    { label: 'Water Level (cm)', data: [], borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.08)', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: true, yAxisID: 'y' },
+                    { label: 'Temperature (°C)', data: [], borderColor: '#f0883e', backgroundColor: 'rgba(240,136,62,0.06)', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: false, yAxisID: 'y1' },
+                ]
+            },
+            options: {
+                ...chartDefaults, scales: {
+                    x: chartDefaults.scales.x,
+                    y: { ...chartDefaults.scales.y, suggestedMax: 100, position: 'left' },
+                    y1: { ...chartDefaults.scales.y, suggestedMax: 70, position: 'right', grid: { drawOnChartArea: false } }
+                }
+            }
+        });
+
+        const allColors = ['#f85149', '#ff7b72', '#58a6ff', '#f0883e', '#bc8cff', '#3fb950'];
+        const allKeys = ['methane', 'h2s', 'water_level', 'temperature', 'humidity', 'ammonia'];
+        const allLabels = ['Methane', 'H₂S', 'Water', 'Temp', 'Humidity', 'Ammonia'];
+        const allMax = [2000, 50, 100, 70, 100, 400];
+
+        allChart = new Chart(document.getElementById('allChart').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: [], datasets: allKeys.map((k, i) => ({
+                    label: allLabels[i], data: [],
+                    borderColor: allColors[i], backgroundColor: 'transparent',
+                    borderWidth: 1.5, pointRadius: 0, tension: 0.4
+                }))
+            },
+            options: {
+                ...chartDefaults, scales: {
+                    x: chartDefaults.scales.x,
+                    y: { ...chartDefaults.scales.y, min: 0, max: 100, ticks: { ...chartDefaults.scales.y.ticks, callback: v => v + '%' } }
+                }
+            }
+        });
+
+        function switchGasChart(key, btn) {
+            gasChartKey = key;
+            document.querySelectorAll('.chart-tab').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const cfg = { methane: { label: 'Methane (ppm)', color: '#f85149', max: 2000 }, h2s: { label: 'H₂S (ppm)', color: '#ff7b72', max: 50 }, ammonia: { label: 'Ammonia (ppm)', color: '#bc8cff', max: 400 } }[key];
+            gasChart.data.datasets[0].label = cfg.label;
+            gasChart.data.datasets[0].borderColor = cfg.color;
+            gasChart.data.datasets[0].backgroundColor = cfg.color + '14';
+            gasChart.data.datasets[0].data = history[key];
+            gasChart.options.scales.y.suggestedMax = cfg.max;
+            gasChart.update('none');
+        }
+
+        function updateCharts(data) {
+            const label = data.timestamp ? data.timestamp.split(' ')[1] : '';
+            const MAX = 30;
+            history.labels.push(label);
+            SENSORS.forEach(s => { history[s.key].push(data[s.key] || 0); });
+            if (history.labels.length > MAX) {
+                history.labels.shift();
+                SENSORS.forEach(s => { history[s.key].shift(); });
+            }
+            gasChart.data.labels = history.labels;
+            gasChart.data.datasets[0].data = history[gasChartKey];
+            gasChart.update('none');
+            envChart.data.labels = history.labels;
+            envChart.data.datasets[0].data = history.water_level;
+            envChart.data.datasets[1].data = history.temperature;
+            envChart.update('none');
+            allChart.data.labels = history.labels;
+            allKeys.forEach((k, i) => { allChart.data.datasets[i].data = history[k].map(v => Math.round((v / allMax[i]) * 100)); });
+            allChart.update('none');
+        }
+
+        async function fetchAndUpdate() {
+            try {
+                const r = await fetch(`${API}/api/sensors?manhole_id=${currentMH}`);
+                const data = await r.json();
+                updateCards(data);
+                updateBanner(data);
+                updateStatus(data);
+                updateAlerts(data);
+                updateCharts(data);
+                document.getElementById('stat-time').textContent = data.timestamp ? data.timestamp.split(' ')[1] : '--';
+                document.getElementById('stat-conn').textContent = 'Online';
+                document.getElementById('stat-conn').style.color = 'var(--green)';
+            } catch (e) {
+                document.getElementById('stat-conn').textContent = 'Reconnecting...';
+                document.getElementById('stat-conn').style.color = 'var(--yellow)';
+            }
+        }
+        fetchAndUpdate();
+        let livePollingInterval = setInterval(fetchAndUpdate, 3000);
+
+        // ── Alert History ──────────────────────────────────────────────────────────
+        async function loadFullAlerts(source = 'live') {
+            const tbody = document.getElementById('full-alert-list');
+            tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)"><i class="fa fa-spinner fa-spin" style="margin-right:8px;"></i>Loading...</td></tr>';
+            const endpoint = source === 'sim' ? `${API}/api/sim/alerts?n=200` : `${API}/api/alerts?n=100`;
+            const sourceLabel = source === 'sim' ? 'Simulator' : 'Live';
+            try {
+                const r = await fetch(endpoint);
+                const data = await r.json();
+                if (!data || data.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="7" style="padding:30px;text-align:center;color:var(--green)"><i class="fa fa-check-circle" style="font-size:24px;display:block;margin-bottom:10px;"></i>No ${sourceLabel.toLowerCase()} alerts found.</td></tr>`;
+                    return;
+                }
+                tbody.innerHTML = data.map(a => `
+        <tr style="border-bottom:1px solid var(--border); transition:background 0.2s;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+            <td style="padding:12px 16px; color:var(--muted);">${a.timestamp || a.time || '—'}</td>
+            <td style="padding:12px 16px; font-weight:600; color:var(--blue);">${a.manhole_id || currentMH}</td>
+            <td style="padding:12px 16px;"><span style="padding:3px 8px;border-radius:4px;font-size:10px;font-weight:600;background:${source === 'sim' ? 'rgba(188,140,255,0.15)' : 'rgba(88,166,255,0.12)'};color:${source === 'sim' ? 'var(--purple)' : 'var(--blue)'};">${sourceLabel}</span></td>
+            <td style="padding:12px 16px;"><span style="padding:4px 8px; border-radius:4px; font-size:11px; font-weight:600; background:${a.level === 'DANGER' ? 'rgba(248,81,73,0.15)' : 'rgba(210,153,34,0.15)'}; color:${a.level === 'DANGER' ? 'var(--red)' : 'var(--yellow)'};">${a.level}</span></td>
+            <td style="padding:12px 16px;">${a.label || a.sensor}</td>
+            <td style="padding:12px 16px; font-weight:700;">${a.value} ${a.unit}</td>
+            <td style="padding:12px 16px; color:var(--muted);">> ${a.threshold} ${a.unit}</td>
+        </tr>`).join('');
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--red)"><i class="fa fa-triangle-exclamation" style="margin-right:8px;"></i>Failed to load alerts.</td></tr>';
+            }
+        }
+
+        // ── Analytics ──────────────────────────────────────────────────────────────
+        let historicalChartInstance = null;
+        async function loadAnalytics() {
+            try {
+                const r = await fetch(`${API}/api/logs?n=100`);
+                const logs = await r.json();
+                const labels = logs.map(l => l.timestamp.split(' ')[1]);
+                const ch4 = logs.map(l => l.methane);
+                const h2s = logs.map(l => l.h2s);
+                const water = logs.map(l => l.water_level);
+                const temps = logs.map(l => l.temperature);
+                const ctx = document.getElementById('historicalChart').getContext('2d');
+                if (historicalChartInstance) historicalChartInstance.destroy();
+                historicalChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [
+                            { label: 'Methane (ppm)', data: ch4, borderColor: '#f85149', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0, tension: 0.4 },
+                            { label: 'H2S (ppm)', data: h2s, borderColor: '#ff7b72', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0, tension: 0.4 },
+                            { label: 'Water Level (cm)', data: water, borderColor: '#58a6ff', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0, tension: 0.4 },
+                            { label: 'Temp (°C)', data: temps, borderColor: '#f0883e', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0, tension: 0.4 }
+                        ]
+                    },
+                    options: chartDefaults
+                });
+            } catch (e) { console.error('Error loading analytics:', e); }
+        }
+
+        // ── Map ────────────────────────────────────────────────────────────────────
+        let map = null;
+        let markers = {};
+
+        function initMap() {
+            if (map !== null) { map.invalidateSize(); return; }
+            map = L.map('map-container', { zoomControl: true, attributionControl: false }).setView([13.0500, 80.2000], 11);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+            MANHOLES.forEach(m => {
+                const circle = L.circleMarker([m.lat, m.lng], { color: '#3fb950', fillColor: '#3fb950', fillOpacity: 0.8, radius: 8 }).addTo(map);
+                circle.bindPopup(`<b>${m.id}</b><br>${m.location}<br>Status: <span id="map-status-${m.id}">SAFE</span>`);
+                markers[m.id] = circle;
+            });
+        }
+
+        // ── SIMULATOR CONTROLS ─────────────────────────────────────────────────────
+        const simState = {};
+
+        function buildSimControls() {
+            const container = document.getElementById('sensor-controls');
+            const nonVibration = SENSORS.filter(s => s.key !== 'vibration');
+            const vibration = SENSORS.find(s => s.key === 'vibration');
+
+            let html = nonVibration.map(s => {
+                simState[s.key] = { value: s.default, warn: s.warn, danger: s.danger };
+                const pct = Math.round((s.default / s.max) * 100);
+                return `
+        <div class="sim-sensor-card active-safe" id="ssc-${s.key}">
+            <div class="ssc-header">
+                <div class="ssc-label"><i class="fa ${s.icon}" style="color:var(--muted);"></i> ${s.label}</div>
+                <span class="ssc-badge safe" id="ssc-badge-${s.key}">SAFE</span>
+            </div>
+            <div style="display:flex;align-items:baseline;gap:6px;">
+                <div class="ssc-value-display safe" id="ssc-val-${s.key}" style="color:var(--green);">${s.default}</div>
+                <div class="ssc-unit">${s.unit}</div>
+            </div>
+            <div class="ssc-slider-wrap">
+                <span style="font-size:10px;color:var(--muted);">0</span>
+                <input type="range" class="ssc-slider safe" id="ssc-slider-${s.key}"
+                    min="0" max="${s.max}" step="${s.max >= 100 ? Math.round(s.max / 100) : 0.5}"
+                    value="${s.default}"
+                    style="--pct:${pct}%"
+                    oninput="onSliderChange('${s.key}', this.value)">
+                <span style="font-size:10px;color:var(--muted);">${s.max}</span>
+            </div>
+            <div class="ssc-range-labels">
+                <span style="color:var(--green);">Safe</span>
+                <span style="color:var(--yellow);">Warn: ${s.warn ?? '-'}</span>
+                <span style="color:var(--red);">Danger: ${s.danger}</span>
+            </div>
+            <div class="ssc-thresh-row">
+                <div class="ssc-thresh-item">
+                    <label>⚠ Warning</label>
+                    <input type="number" id="ssc-twarn-${s.key}" value="${s.warn ?? ''}" step="any"
+                        onchange="simState['${s.key}'].warn = parseFloat(this.value)||null; onSliderChange('${s.key}', document.getElementById('ssc-slider-${s.key}').value)">
+                </div>
+                <div class="ssc-thresh-item">
+                    <label>🔴 Danger</label>
+                    <input type="number" id="ssc-tdanger-${s.key}" value="${s.danger}" step="any"
+                        onchange="simState['${s.key}'].danger = parseFloat(this.value)||${s.danger}; onSliderChange('${s.key}', document.getElementById('ssc-slider-${s.key}').value)">
+                </div>
+            </div>
+            <div class="quick-btns">
+                <div class="qbtn q-safe" onclick="setQuick('${s.key}','safe')">Safe</div>
+                <div class="qbtn q-warn" onclick="setQuick('${s.key}','warning')">Warning</div>
+                <div class="qbtn q-danger" onclick="setQuick('${s.key}','danger')">Danger</div>
+            </div>
+        </div>`;
+            }).join('');
+
+            // Vibration card (special toggle)
+            if (vibration) {
+                simState['vibration'] = { value: 0, warn: null, danger: 1 };
+                html += `
+        <div class="sim-sensor-card" id="ssc-vibration">
+            <div class="ssc-header">
+                <div class="ssc-label"><i class="fa fa-wave-square" style="color:var(--muted);"></i> Vibration</div>
+                <span class="ssc-badge safe" id="ssc-badge-vibration">OFF</span>
+            </div>
+            <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:8px;">
+                <div class="ssc-value-display" id="ssc-val-vibration" style="color:var(--green);font-size:18px;">NORMAL</div>
+            </div>
+            <div class="vibration-toggle-row">
+                <span style="font-size:12px;color:var(--muted);">Detection Active</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="ssc-vib-toggle" onchange="onVibToggle(this.checked)">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div style="margin-top:10px;font-size:11px;color:var(--muted);">Simulates movement/cover tampering. When ON, ~70% of logs will register vibration.</div>
+        </div>`;
+            }
+
+            container.innerHTML = html;
+        }
+        buildSimControls();
+
+        function onSliderChange(key, rawVal) {
+            const val = parseFloat(rawVal);
+            simState[key].value = val;
+            const s = SENSORS.find(x => x.key === key);
+            const danger = simState[key].danger ?? s.danger;
+            const warn = simState[key].warn ?? s.warn;
+            const pct = Math.round((val / s.max) * 100);
+
+            let level = 'safe';
+            if (val >= danger) level = 'danger';
+            else if (warn !== null && val >= warn) level = 'warning';
+
+            const card = document.getElementById('ssc-' + key);
+            const badge = document.getElementById('ssc-badge-' + key);
+            const valEl = document.getElementById('ssc-val-' + key);
+            const slider = document.getElementById('ssc-slider-' + key);
+
+            badge.className = `ssc-badge ${level}`;
+            badge.textContent = level.toUpperCase();
+            valEl.style.color = level === 'danger' ? 'var(--red)' : level === 'warning' ? 'var(--yellow)' : 'var(--green)';
+            valEl.textContent = val;
+
+            card.className = `sim-sensor-card active-${level}`;
+            slider.className = `ssc-slider ${level}`;
+            slider.style.setProperty('--pct', pct + '%');
+
+            // Update SVG diagram
+            updateDiagramForSensor(key, val, level, s);
+        }
+
+        function onVibToggle(checked) {
+            simState['vibration'].value = checked ? 1 : 0;
+            const badge = document.getElementById('ssc-badge-vibration');
+            const valEl = document.getElementById('ssc-val-vibration');
+            const card = document.getElementById('ssc-vibration');
+            if (checked) {
+                badge.className = 'ssc-badge danger'; badge.textContent = 'ACTIVE';
+                valEl.style.color = 'var(--red)'; valEl.textContent = 'DETECTED';
+                card.className = 'sim-sensor-card active-danger';
+            } else {
+                badge.className = 'ssc-badge safe'; badge.textContent = 'OFF';
+                valEl.style.color = 'var(--green)'; valEl.textContent = 'NORMAL';
+                card.className = 'sim-sensor-card';
+            }
+        }
+
+        function setQuick(key, level) {
+            const s = SENSORS.find(x => x.key === key);
+            const danger = simState[key].danger ?? s.danger;
+            const warn = simState[key].warn ?? s.warn;
+            let targetVal;
+            if (level === 'safe') targetVal = (warn ? warn * 0.5 : danger * 0.3);
+            else if (level === 'warning') targetVal = warn ? warn * 1.1 : danger * 0.7;
+            else targetVal = danger * 1.2;
+            targetVal = Math.min(s.max, Math.max(0, targetVal));
+            const slider = document.getElementById('ssc-slider-' + key);
+            slider.value = targetVal;
+            onSliderChange(key, targetVal);
+        }
+
+        function resetSimulator() {
+            SENSORS.forEach(s => {
+                if (s.key === 'vibration') {
+                    document.getElementById('ssc-vib-toggle').checked = false;
+                    onVibToggle(false);
+                } else {
+                    const slider = document.getElementById('ssc-slider-' + s.key);
+                    slider.value = s.default;
+                    onSliderChange(s.key, s.default);
+                    document.getElementById('ssc-twarn-' + s.key).value = s.warn ?? '';
+                    document.getElementById('ssc-tdanger-' + s.key).value = s.danger;
+                    simState[s.key].warn = s.warn;
+                    simState[s.key].danger = s.danger;
+                }
+            });
+            // Reset SVG
+            resetDiagram();
+        }
+
+        // ── SVG Diagram Updates ─────────────────────────────────────────────────────
+        function updateDiagramForSensor(key, val, level, s) {
+            const colorMap = { safe: '#3fb950', warning: '#d29922', danger: '#f85149' };
+            const color = colorMap[level];
+
+            if (key === 'methane' || key === 'h2s' || key === 'ammonia') {
+                const pct = val / s.max;
+                const opacity = 0.08 + pct * 0.6;
+                ['svg-gas1', 'svg-gas2', 'svg-gas3'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) { el.setAttribute('fill', color); el.setAttribute('opacity', opacity.toFixed(2)); }
+                });
+                const gasGroup = document.getElementById('svg-gas-group');
+                if (gasGroup) gasGroup.setAttribute('opacity', Math.min(1, 0.3 + pct * 0.7).toFixed(2));
+                const sensorEl = document.getElementById('svg-sensor-gas');
+                if (sensorEl) {
+                    sensorEl.querySelector('circle').setAttribute('fill', `${color}26`);
+                    sensorEl.querySelector('circle').setAttribute('stroke', color);
+                }
+            }
+
+            if (key === 'water_level') {
+                const pct = val / 100;
+                const waterY = 275 - pct * 220;
+                const waterH = pct * 220;
+                const waterEl = document.getElementById('svg-water-col');
+                const waterEllipse = document.getElementById('svg-water');
+                if (waterEl) { waterEl.setAttribute('y', waterY.toFixed(0)); waterEl.setAttribute('height', waterH.toFixed(0)); }
+                if (waterEllipse) waterEllipse.setAttribute('cy', waterY.toFixed(0));
+                const sensorEl = document.getElementById('svg-sensor-water');
+                if (sensorEl) {
+                    sensorEl.querySelector('circle').setAttribute('fill', `${color}26`);
+                    sensorEl.querySelector('circle').setAttribute('stroke', color);
+                }
+            }
+
+            if (key === 'temperature' || key === 'humidity') {
+                const sensorEl = document.getElementById('svg-sensor-temp');
+                if (sensorEl) {
+                    sensorEl.querySelector('circle').setAttribute('fill', `${color}26`);
+                    sensorEl.querySelector('circle').setAttribute('stroke', color);
+                }
+            }
+
+            // Update overall status ring
+            const overallColors = [];
+            ['methane', 'h2s', 'water_level', 'temperature', 'humidity', 'ammonia'].forEach(k => {
+                const sv = simState[k] ? simState[k].value : 0;
+                const sd = simState[k] ? simState[k].danger : SENSORS.find(x => x.key === k).danger;
+                const sw = simState[k] ? simState[k].warn : SENSORS.find(x => x.key === k).warn;
+                if (sv >= sd) overallColors.push('danger');
+                else if (sw && sv >= sw) overallColors.push('warning');
+                else overallColors.push('safe');
+            });
+            const ring = document.getElementById('svg-status-ring');
+            if (ring) {
+                const overall = overallColors.includes('danger') ? '#f85149' : overallColors.includes('warning') ? '#d29922' : '#3fb950';
+                ring.setAttribute('stroke', overall);
+            }
+        }
+
+        function resetDiagram() {
+            ['svg-gas1', 'svg-gas2', 'svg-gas3'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) { el.setAttribute('fill', '#f85149'); el.setAttribute('opacity', '0.15'); }
+            });
+            document.getElementById('svg-gas-group').setAttribute('opacity', '0.7');
+            const waterEl = document.getElementById('svg-water-col');
+            if (waterEl) { waterEl.setAttribute('y', '265'); waterEl.setAttribute('height', '25'); }
+            const waterEllipse = document.getElementById('svg-water');
+            if (waterEllipse) waterEllipse.setAttribute('cy', '275');
+            document.getElementById('svg-status-ring').setAttribute('stroke', '#3fb950');
+        }
+
+        // ── Log Generation ──────────────────────────────────────────────────────────
+        async function generateLogs() {
+            const btn1 = document.getElementById('btn-generate');
+            const btn2 = document.getElementById('btn-generate-2');
+            const progress = document.getElementById('gen-progress');
+
+            [btn1, btn2].forEach(b => { b.disabled = true; b.innerHTML = '<i class="fa fa-spinner spinner"></i> Generating...'; });
+            progress.style.display = 'block';
+
+            // Read all user inputs
+            const noiseLevel = parseFloat(document.getElementById('sim-noise').value);
+            const numLogs = parseInt(document.getElementById('sim-num-logs').value) || 20;
+            const timeStep = parseInt(document.getElementById('sim-time-step').value) || 30;
+            const manholeId = document.getElementById('sim-manhole-id').value;
+
+            const payload = {
+                manhole_id: manholeId,
+                num_logs: numLogs,
+                interval_seconds: timeStep,
+            };
+
+            // Build sensor configs
+            SENSORS.forEach(s => {
+                const state = simState[s.key];
+                if (!state) return;
+                payload[s.key] = {
+                    value: state.value,
+                    threshold_warning: state.warn,
+                    threshold_danger: state.danger,
+                    noise_level: noiseLevel
+                };
+            });
+
+            try {
+                const r = await fetch(`${API}/api/simulate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                const data = await r.json();
+                currentSimLogs = data.logs || [];
+                renderSimResults(data);
+            } catch (e) {
+                console.error('Simulation failed:', e);
+                alert('❌ Simulation failed. Make sure the backend is running at localhost:8000');
+            } finally {
+                [btn1, btn2].forEach(b => { b.disabled = false; b.innerHTML = '<i class="fa fa-bolt"></i> Generate Logs'; });
+                progress.style.display = 'none';
+            }
+        }
+
+        function renderSimResults(data) {
+            const logs = data.logs || [];
+            const resultPanel = document.getElementById('sim-results-panel');
+            const emptyState = document.getElementById('sim-empty-state');
+            resultPanel.style.display = 'block';
+            emptyState.style.display = 'none';
+
+            // Meta
+            document.getElementById('sim-result-meta').textContent =
+                `Generated ${logs.length} logs for ${data.manhole_id} at ${data.generated_at}`;
+
+            // Summary stats
+            const dangerCount = logs.filter(l => l.status === 'DANGER').length;
+            const warnCount = logs.filter(l => l.status === 'WARNING').length;
+            const safeCount = logs.filter(l => l.status === 'SAFE').length;
+            document.getElementById('sim-stat-total').textContent = logs.length;
+            document.getElementById('sim-stat-danger').textContent = dangerCount;
+            document.getElementById('sim-stat-warning').textContent = warnCount;
+            document.getElementById('sim-stat-safe').textContent = safeCount;
+
+            // Charts
+            const labels = logs.map(l => l.timestamp.split(' ')[1] || l.timestamp);
+
+            if (simGasChart) simGasChart.destroy();
+            simGasChart = new Chart(document.getElementById('simGasChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'Methane (ppm)', data: logs.map(l => l.methane), borderColor: '#f85149', backgroundColor: 'rgba(248,81,73,0.08)', borderWidth: 2, pointRadius: 2, tension: 0.4, fill: true },
+                        { label: 'H₂S (ppm)', data: logs.map(l => l.h2s), borderColor: '#ff7b72', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 1, tension: 0.4 },
+                        { label: 'NH₃ (ppm)', data: logs.map(l => l.ammonia), borderColor: '#bc8cff', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 1, tension: 0.4 },
+                    ]
+                },
+                options: { ...chartDefaults, animation: { duration: 600 } }
+            });
+
+            if (simEnvChart) simEnvChart.destroy();
+            simEnvChart = new Chart(document.getElementById('simEnvChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'Water (cm)', data: logs.map(l => l.water_level), borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.08)', borderWidth: 2, pointRadius: 2, tension: 0.4, fill: true, yAxisID: 'y' },
+                        { label: 'Temp (°C)', data: logs.map(l => l.temperature), borderColor: '#f0883e', borderWidth: 1.5, pointRadius: 1, tension: 0.4, yAxisID: 'y1' },
+                        { label: 'Humidity (%)', data: logs.map(l => l.humidity), borderColor: '#3fb950', borderWidth: 1.5, pointRadius: 1, tension: 0.4, yAxisID: 'y1' },
+                    ]
+                },
+                options: {
+                    ...chartDefaults,
+                    animation: { duration: 600 },
+                    scales: {
+                        x: chartDefaults.scales.x,
+                        y: { ...chartDefaults.scales.y, position: 'left', title: { display: true, text: 'cm', color: '#555' } },
+                        y1: { ...chartDefaults.scales.y, position: 'right', grid: { drawOnChartArea: false } }
+                    }
+                }
+            });
+
+            // Log table
+            const tbody = document.getElementById('sim-log-tbody');
+            tbody.innerHTML = logs.map((l, i) => {
+                const alertCount = (l.alerts || []).length;
+                const alertSummary = alertCount > 0
+                    ? (l.alerts || []).map(a => `<span style="color:${a.level === 'DANGER' ? 'var(--red)' : 'var(--yellow)'};font-size:10px;">${a.label.split(' ')[0]} ${a.level}</span>`).join(', ')
+                    : '<span style="color:var(--green);font-size:10px;">—</span>';
+
+                return `<tr>
+            <td style="color:var(--muted);">${i + 1}</td>
+            <td style="color:var(--muted);font-size:11px;">${l.timestamp}</td>
+            <td><span class="status-pill ${l.status}">${l.status}</span></td>
+            <td style="color:${l.methane >= 1000 ? 'var(--red)' : l.methane >= 500 ? 'var(--yellow)' : 'var(--text)'};font-weight:${l.methane >= 500 ? '700' : '400'};">${l.methane}</td>
+            <td style="color:${l.h2s >= 10 ? 'var(--red)' : l.h2s >= 5 ? 'var(--yellow)' : 'var(--text)'}">${l.h2s}</td>
+            <td style="color:${l.water_level >= 75 ? 'var(--red)' : l.water_level >= 55 ? 'var(--yellow)' : 'var(--text)'}">${l.water_level}</td>
+            <td style="color:${l.temperature >= 50 ? 'var(--red)' : l.temperature >= 40 ? 'var(--yellow)' : 'var(--text)'}">${l.temperature}</td>
+            <td style="color:${l.humidity >= 90 ? 'var(--red)' : l.humidity >= 78 ? 'var(--yellow)' : 'var(--text)'}">${l.humidity}</td>
+            <td style="color:${l.ammonia >= 200 ? 'var(--red)' : l.ammonia >= 100 ? 'var(--yellow)' : 'var(--text)'}">${l.ammonia}</td>
+            <td style="color:${l.vibration ? 'var(--red)' : 'var(--muted)'};">${l.vibration ? '⚡ YES' : 'No'}</td>
+            <td>${alertSummary}</td>
+        </tr>`;
+            }).join('');
+
+            // Scroll to results
+            resultPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function clearSimResults() {
+            stopSimReplay();
+            document.getElementById('sim-results-panel').style.display = 'none';
+            document.getElementById('sim-empty-state').style.display = 'block';
+            currentSimLogs = [];
+            fetch(`${API}/api/sim/clear`, { method: 'DELETE' }).catch(() => { });
+        }
+
+        // ── SIMULATOR REPLAY INTO LIVE DASHBOARD ────────────────────────────────────
+        let replayTimer = null;
+        let isReplayActive = false;
+
+        function startSimReplay() {
+            if (!currentSimLogs.length) {
+                alert('No simulation logs to replay. Generate logs first.');
+                return;
+            }
+            if (isReplayActive) {
+                stopSimReplay();
+                return;
+            }
+
+            const logs = [...currentSimLogs];
+            const total = logs.length;
+            const speed = parseInt(document.getElementById('replay-speed').value) || 1500;
+            let idx = 0;
+
+            // Pause live polling
+            clearInterval(livePollingInterval);
+            livePollingInterval = null;
+            isReplayActive = true;
+
+            // Update button
+            const btn = document.getElementById('btn-send-live');
+            if (btn) { btn.innerHTML = '<i class="fa fa-stop"></i> Stop Replay'; btn.onclick = stopSimReplay; }
+
+            // Show replay banner on live dashboard
+            const banner = document.getElementById('replay-banner');
+            banner.classList.add('active');
+
+            // Switch to live dashboard to show replay
+            switchView('dashboard', document.getElementById('nav-dashboard'));
+
+            // Show "SIMULATOR" instead of LIVE in topbar
+            document.querySelector('.live-badge').innerHTML = '<div class="live-dot" style="background:var(--purple)"></div>SIM REPLAY';
+            document.querySelector('.live-dot').style.background = 'var(--purple)';
+
+            function replayNext() {
+                if (idx >= total || !isReplayActive) {
+                    finishReplay();
+                    return;
+                }
+
+                const log = logs[idx];
+                idx++;
+
+                // Feed this sim log into all live dashboard update functions
+                // Attach needed fields for compatibility
+                const enriched = {
+                    ...log,
+                    timestamp: new Date().toLocaleString('en-GB').replace(',', ''),
+                    source: 'simulator'
+                };
+
+                updateCards(enriched);
+                updateBanner(enriched);
+                updateStatus(enriched);
+                updateAlerts(enriched);
+                updateCharts(enriched);
+                document.getElementById('stat-time').textContent = new Date().toLocaleTimeString('en-IN', { hour12: false });
+                document.getElementById('stat-conn').textContent = 'SIM Mode';
+                document.getElementById('stat-conn').style.color = 'var(--purple)';
+
+                // Update replay banner progress
+                const pct = Math.round((idx / total) * 100);
+                document.getElementById('replay-progress-fill').style.width = pct + '%';
+                document.getElementById('replay-info-text').textContent =
+                    `Log ${idx} of ${total} · ${log.status} · ${log.manhole_id}`;
+
+                replayTimer = setTimeout(replayNext, speed);
+            }
+
+            replayNext();
+        }
+
+        function stopSimReplay() {
+            if (replayTimer) { clearTimeout(replayTimer); replayTimer = null; }
+            isReplayActive = false;
+
+            // Hide replay banner
+            const banner = document.getElementById('replay-banner');
+            if (banner) banner.classList.remove('active');
+
+            // Restore LIVE badge
+            document.querySelector('.live-badge').innerHTML = '<div class="live-dot"></div>LIVE';
+
+            // Reset button
+            const btn = document.getElementById('btn-send-live');
+            if (btn) { btn.innerHTML = '<i class="fa fa-arrow-right"></i> Send to Live Dashboard'; btn.onclick = startSimReplay; }
+
+            // Resume live polling
+            if (!livePollingInterval) {
+                fetchAndUpdate();
+                livePollingInterval = setInterval(fetchAndUpdate, 3000);
+                document.getElementById('stat-conn').textContent = 'Online';
+                document.getElementById('stat-conn').style.color = 'var(--green)';
+            }
+        }
+
+        function finishReplay() {
+            stopSimReplay();
+            // Flash the banner with a completion message briefly
+            const banner = document.getElementById('replay-banner');
+            banner.classList.add('active');
+            banner.querySelector('.replay-info strong').textContent = '✅ Replay Complete — Live mode resuming';
+            banner.querySelector('#replay-info-text').textContent = 'All simulated logs have been played. Live polling restarted.';
+            document.getElementById('replay-progress-fill').style.width = '100%';
+            setTimeout(() => { banner.classList.remove('active'); }, 3500);
+        }
+
+        function exportSimCSV() {
+            if (!currentSimLogs.length) { alert('No simulation logs to export.'); return; }
+            const headers = ['timestamp', 'manhole_id', 'status', 'methane', 'h2s', 'water_level', 'temperature', 'humidity', 'ammonia', 'vibration'];
+            const rows = currentSimLogs.map(l => headers.map(h => l[h] ?? '').join(','));
+            const csv = headers.join(',') + '\n' + rows.join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `sim_logs_${Date.now()}.csv`; a.click();
+        }
+
+        // ── CSV/PDF Export ─────────────────────────────────────────────────────────
+        async function exportCSV() {
+            try {
+                const r = await fetch(`${API}/api/logs?n=1000`);
+                const logs = await r.json();
+                if (!logs.length) { alert('No data to export'); return; }
+                const headers = ['timestamp', 'manhole_id', 'status', 'methane', 'h2s', 'water_level', 'temperature', 'humidity', 'ammonia'];
+                const rows = logs.map(l => headers.map(h => l[h]).join(','));
+                const blob = new Blob([headers.join(',') + '\n' + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url; link.download = `smart_manhole_export_${Date.now()}.csv`; link.click();
+            } catch (e) { alert('Failed to generate CSV export'); }
+        }
+
+        function exportPDF() {
+            const content = `SMART MANHOLE MONITORING - MONTHLY COMPLIANCE REPORT\n${'='.repeat(54)}\n\nDate Generated: ${new Date().toLocaleString()}\nLocation: Chennai Smart City\nSystem Status: Online (ESP32 + NB-IoT)\n\nHIGHLIGHTS:\n- All sensors responded perfectly in the last 30 days.\n- Warning limits for Methane were hit temporarily in Zone B but auto-ventilation successfully cleared it.\n- Safe worker entry permits maintained 99.8% up time.\n\nPlease refer to the raw CSV export for detailed telemetry.`;
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url; link.download = `compliance_report_${Date.now()}.txt`; link.click();
+        }
+
+        // ── Background map polling ──────────────────────────────────────────────────
+        setInterval(async () => {
+            if (!map) return;
+            for (const m of MANHOLES) {
+                try {
+                    const r = await fetch(`${API}/api/sensors?manhole_id=${m.id}`);
+                    const data = await r.json();
+                    const level = data.status || 'SAFE';
+                    const color = level === 'DANGER' ? '#f85149' : level === 'WARNING' ? '#d29922' : '#3fb950';
+                    const circle = markers[m.id];
+                    if (circle) circle.setStyle({ fillColor: color, color });
+                } catch (e) { }
+            }
+        }, 10000);
+    </script>
+</body>
+
+</html>
